@@ -8,6 +8,8 @@
 #include "drawing_history.h" // 包含自定义绘图历史头文件
 #include "esp_now_handler.h" // 包含 esp_now_handler.h 以访问 PeerInfo_t 和 peerInfoMap
 #include <esp_wifi.h> // 用于获取本机 MAC 地址
+#include "wifi_manager.h"
+#include "mqtt_handler.h"
 
 // --- 全局 UI 状态变量 (在此定义) ---
 UIState_t currentUIState = UI_STATE_MAIN; // 当前 UI 状态
@@ -55,6 +57,7 @@ void drawMainInterface()
     drawResetButton();
     drawColorButtons();
     drawPeerInfoButton(); // 此函数内部会调用 updateConnectedDevicesCount
+    drawWifiSettingsButton(); // 新增：绘制WiFi设置按钮
     drawStarButton(); // 绘制颜色框和 "*"
     if (isScreenOn && !inCustomColorMode)
     {
@@ -1178,3 +1181,69 @@ bool isPeerInfoScreenBackButtonPressed(int x, int y) {
 // 然而，它更像是一个系统工具或电源管理功能。
 // 目前，它是 extern 声明的，假设它在 Project-ESPNow.ino 或 power_manager 中。
 // float readBatteryVoltagePercentage() { /* ... 实现 ... */ }
+
+// --- WiFi 设置界面函数 ---
+
+void drawWifiSettingsButton() {
+    tft.fillRoundRect(WIFI_BUTTON_X, WIFI_BUTTON_Y, WIFI_BUTTON_W, WIFI_BUTTON_H, 5, TFT_DARKGREY);
+    tft.drawRoundRect(WIFI_BUTTON_X, WIFI_BUTTON_Y, WIFI_BUTTON_W, WIFI_BUTTON_H, 5, TFT_WHITE);
+    tft.setTextColor(TFT_WHITE);
+    tft.setTextSize(1);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("WiFi", WIFI_BUTTON_X + WIFI_BUTTON_W / 2, WIFI_BUTTON_Y + WIFI_BUTTON_H / 2);
+    tft.setTextDatum(TL_DATUM);
+}
+
+bool isWifiSettingsButtonPressed(int x, int y) {
+    return x >= WIFI_BUTTON_X && x <= WIFI_BUTTON_X + WIFI_BUTTON_W &&
+           y >= WIFI_BUTTON_Y && y <= WIFI_BUTTON_Y + WIFI_BUTTON_H;
+}
+
+void showWifiSettingsScreen() {
+    currentUIState = UI_STATE_WIFI_SETTINGS;
+    drawWifiSettingsScreen();
+}
+
+void hideWifiSettingsScreen() {
+    currentUIState = UI_STATE_MAIN;
+    redrawMainScreen();
+}
+
+void drawWifiSettingsScreen() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString("WiFi Settings", SCREEN_WIDTH / 2, 10, 2);
+    tft.setTextDatum(TL_DATUM);
+
+    // "Connect with Default" 按钮
+    tft.fillRect(60, 100, 200, 50, TFT_BLUE);
+    tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("Connect with Default", SCREEN_WIDTH / 2, 125, 2);
+    tft.setTextDatum(TL_DATUM);
+
+    // 返回按钮
+    tft.fillRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_H, TFT_DARKGREY);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("B", BACK_BUTTON_X + BACK_BUTTON_W / 2, BACK_BUTTON_Y + BACK_BUTTON_H / 2, 2);
+    tft.setTextDatum(TL_DATUM);
+}
+
+void handleWifiSettingsTouch(int x, int y) {
+    // 返回按钮
+    if (isBackButtonPressed(x, y)) {
+        hideWifiSettingsScreen();
+        return;
+    }
+
+    // "Connect with Default" 按钮
+    if (x >= 60 && x <= 260 && y >= 100 && y <= 150) {
+        connectToWiFi(DEFAULT_WIFI_SSID, DEFAULT_WIFI_PASSWORD);
+        if (isWifiConnected()) {
+            mqttInit(DEFAULT_MQTT_BROKER, DEFAULT_MQTT_PORT);
+        }
+        hideWifiSettingsScreen();
+    }
+}

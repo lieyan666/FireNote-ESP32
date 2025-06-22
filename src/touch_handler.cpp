@@ -6,10 +6,14 @@
 #include "ui_manager.h"       // 用于UI函数和状态 (inCustomColorMode, currentColor, currentUIState 等)
 #include "esp_now_handler.h"  // 用于ESP-NOW函数 (sendSyncMessage) 和数据 (allDrawingHistory 等)
 #include "drawing_history.h" // 包含自定义绘图历史头文件
+#include "wifi_manager.h"     // 用于 isWifiConnected()
+#include "mqtt_handler.h"     // 用于 sendDrawingData()
 
 // --- 静态 (文件局部) 全局变量，用于触摸处理状态 ---
 static TS_Point lastLocalPoint = {0, 0, 0};  // 本地最后一次触摸点坐标
 static unsigned long lastLocalTouchTime = 0; // 本地最后一次触摸事件的时间戳
+static bool wasTouching = false; // 用于检测提笔事件
+static std::vector<TouchData_t> currentStroke; // 用于缓存当前笔画
 
 // 彩蛋相关变量，现为本模块局部变量
 static unsigned long lastResetTime = 0;
@@ -188,17 +192,22 @@ void handleLocalTouch() {
                             iamRequestingAllData = false;
                             initialSyncLogicProcessed = false;
 
-                            // 通过ESP-NOW发送复位消息
-                            SyncMessage_t resetMsg;
-                            resetMsg.type = MSG_TYPE_RESET_CANVAS;
-                            resetMsg.senderUptime = currentRawUptime;
-                            resetMsg.senderOffset = relativeBootTimeOffset; // 现在应为0
-                            resetMsg.touch_data.isReset = true;
-                            resetMsg.touch_data.timestamp = currentRawUptime;
-                            resetMsg.touch_data.x = 0; // 与复位无关
-                            resetMsg.touch_data.y = 0; // 与复位无关
-                            resetMsg.touch_data.color = currentColor; // currentColor 来自 ui_manager
-                            sendSyncMessage(&resetMsg); // sendSyncMessage 来自 esp_now_handler
+                            // 根据连接状态发送复位消息
+                            if (isWifiConnected()) {
+                                sendResetMessage();
+                            } else {
+                                // 通过ESP-NOW发送复位消息
+                                SyncMessage_t resetMsg;
+                                resetMsg.type = MSG_TYPE_RESET_CANVAS;
+                                resetMsg.senderUptime = currentRawUptime;
+                                resetMsg.senderOffset = relativeBootTimeOffset; // 现在应为0
+                                resetMsg.touch_data.isReset = true;
+                                resetMsg.touch_data.timestamp = currentRawUptime;
+                                resetMsg.touch_data.x = 0; // 与复位无关
+                                resetMsg.touch_data.y = 0; // 与复位无关
+                                resetMsg.touch_data.color = currentColor; // currentColor 来自 ui_manager
+                                sendSyncMessage(&resetMsg); // sendSyncMessage 来自 esp_now_handler
+                            }
 
                             // 本地绘图历史 (allDrawingHistory) 已被清除。
                             // 屏幕和UI缓存 (clearScreenAndCache()) 已被清除。
@@ -218,6 +227,12 @@ void handleLocalTouch() {
                         if (isPeerInfoButtonPressed(mapX, mapY)) {
                             showPeerInfoScreen(); // 切换到对端信息界面
                             return; // 操作已处理
+                        }
+
+                        // 检查WiFi设置按钮
+                        if (isWifiSettingsButtonPressed(mapX, mapY)) {
+                            showWifiSettingsScreen();
+                            return;
                         }
 
                         // 检查休眠按钮 (已改为对端信息按钮，此处的逻辑应移除或修改)
@@ -263,13 +278,18 @@ void handleLocalTouch() {
 
                         allDrawingHistory.push_back(currentDrawPoint); // 添加到本地历史 (esp_now_handler 的 extern 变量)
 
-                        // 准备并通过ESP-NOW发送绘图数据
-                        SyncMessage_t drawMsg;
-                        drawMsg.type = MSG_TYPE_DRAW_POINT;
-                        drawMsg.senderUptime = currentRawUptime;
-                        drawMsg.senderOffset = relativeBootTimeOffset; // relativeBootTimeOffset 来自 esp_now_handler
-                        drawMsg.touch_data = currentDrawPoint;
-                        sendSyncMessage(&drawMsg); // sendSyncMessage 来自 esp_now_handler
+                        // 根据WiFi连接状态选择发送方式
+                        if (isWifiConnected()) {
+                            currentStroke.push_back(currentDrawPoint);
+                        } else {
+                            // 通过ESP-NOW发送绘图数据
+                            SyncMessage_t drawMsg;
+                            drawMsg.type = MSG_TYPE_DRAW_POINT;
+                            drawMsg.senderUptime = currentRawUptime;
+                            drawMsg.senderOffset = relativeBootTimeOffset; // relativeBootTimeOffset 来自 esp_now_handler
+                            drawMsg.touch_data = currentDrawPoint;
+                            sendSyncMessage(&drawMsg); // sendSyncMessage 来自 esp_now_handler
+                        }
                     }
                     break; // End of UI_STATE_MAIN case
 
@@ -290,13 +310,25 @@ void handleLocalTouch() {
                     }
                     // 如果将来对端信息界面有其他可交互元素，可以在这里添加处理逻辑
                     break; // End of UI_STATE_PEER_INFO case
+                
+                case UI_STATE_WIFI_SETTINGS:
+                    handleWifiSettingsTouch(mapX, mapY);
+                    break;
 
                 default:
                     // 未知状态，可能需要默认行为或错误处理
                     break;
             }
         }
+        wasTouching = true; // 标记本次循环处理了触摸事件
     } else { // 当前未检测到触摸
+        if (wasTouching) { // 如果上一次是触摸状态，说明是提笔事件
+            if (isWifiConnected() && !currentStroke.empty()) {
+                sendStroke(currentStroke); // 发送整条笔画
+                currentStroke.clear(); // 清空笔画缓冲区
+            }
+        }
+        wasTouching = false; // 重置触摸状态
         lastLocalPoint.z = 0; // 标记为无触摸 (压力 = 0)
     }
 }

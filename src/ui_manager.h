@@ -16,7 +16,8 @@ enum UIState_e {
     UI_STATE_MAIN,         // 主绘图界面
     UI_STATE_COLOR_PICKER, // 颜色选择器界面
     UI_STATE_POPUP,        // 弹窗界面 (例如项目信息或 Coffee)
-    UI_STATE_PEER_INFO     // 对端信息界面
+    UI_STATE_PEER_INFO,     // 对端信息界面
+    UI_STATE_WIFI_SETTINGS // WiFi 设置界面
 };
 typedef enum UIState_e UIState_t;
 
@@ -62,6 +63,7 @@ void drawMainInterface();
 void drawResetButton();
 void drawColorButtons();
 void drawPeerInfoButton();    // 显示对端信息按钮 (可能显示连接设备数)
+void drawWifiSettingsButton(); // 新增：绘制WiFi设置按钮
 void drawCustomColorButton(); // 显示当前颜色
 void drawStarButton();        // 显示当前颜色, 自定义颜色入口的占位符
 
@@ -84,12 +86,19 @@ void updatePeerInfoScreen();
 void showPeerInfoScreen();
 void hidePeerInfoScreen();
 
+// WiFi 设置界面函数
+void drawWifiSettingsScreen();
+void showWifiSettingsScreen();
+void hideWifiSettingsScreen();
+void handleWifiSettingsTouch(int x, int y);
+
 
 // 按钮按下检测函数 (基于坐标)
 bool isResetButtonPressed(int x, int y);
 bool isColorButtonPressed(int x, int y, uint32_t &selectedColor); // 输出选中的颜色
 bool isPeerInfoButtonPressed(int x, int y); // 检测对端信息按钮是否被按下
 bool isPeerInfoScreenBackButtonPressed(int x, int y); // 检测对端信息界面返回按钮是否被按下 - 新增声明
+bool isWifiSettingsButtonPressed(int x, int y); // 检测WiFi设置按钮
 bool isCustomColorButtonPressed(int x, int y); // 用于进入自定义颜色模式
 bool isBackButtonPressed(int x, int y);        // 用于退出自定义颜色模式 (主要用于调色盘)
 bool isDebugToggleButtonPressed(int x, int y); // 检测调试信息切换按钮是否被按下

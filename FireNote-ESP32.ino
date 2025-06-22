@@ -30,6 +30,8 @@
 #include <map>        // For std::map (needed for peerInfoMap)
 
 #include "src/config.h" // 引入配置文件
+#include "src/wifi_manager.h" // 引入 WiFi 管理模块
+#include "src/mqtt_handler.h" // 引入 MQTT 处理模块
 #include "src/esp_now_handler.h" // 引入 ESP-NOW 处理模块
 #include "src/ui_manager.h"   // 引入 UI 管理模块
 #include "src/touch_handler.h" // 引入触摸处理模块
@@ -84,6 +86,9 @@ void setup()
     powerManagerInit();  // 初始化电源管理 (引脚设置, LED, 按钮)
     uiManagerInit();     // 初始化 UI 管理器 (如果需要特定设置)
     touchHandlerInit();  // 初始化触摸处理器 (如果需要特定设置)
+    wifiManagerInit();   // 初始化 WiFi 管理器
+    // 在这里，我们暂时不自动连接WiFi或初始化MQTT，
+    // 这将通过UI菜单触发。
 
     // 2. 初始化硬件接口 (SPI, 触摸屏, TFT)
     mySpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
@@ -124,7 +129,11 @@ void loop()
 {
     // 处理输入和通信
     handleLocalTouch();         // from touch_handler.cpp
-    processIncomingMessages();  // from esp_now_handler.cpp
+    if (isWifiConnected()) {
+        mqttLoop(); // 如果WiFi已连接，则处理MQTT
+    } else {
+        processIncomingMessages();  // 否则，继续使用ESP-NOW
+    }
     handleBootButton();         // from power_manager.cpp
 
     unsigned long currentTimeForLoop = millis();

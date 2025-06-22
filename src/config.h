@@ -130,4 +130,19 @@
 #define COFFEE_BUTTON_H COFFEE_BUTTON_W      // 与调试按钮高度相同
 #define COFFEE_BUTTON_Y (DEBUG_TOGGLE_BUTTON_Y - COFFEE_BUTTON_H - 2) // 在调试按钮上方，间隔2像素
 
+// WiFi 和 MQTT 默认配置
+// 敏感信息已移至 src/credentials.h (此文件已被 .gitignore 忽略)
+// 请将 src/credentials.h.example 复制为 src/credentials.h 并填入您的信息
+#include "credentials.h"
+
+// WiFi 设置按钮位置和大小
+#define WIFI_BUTTON_X (PEER_INFO_BUTTON_X + PEER_INFO_BUTTON_W + 2)
+#define WIFI_BUTTON_Y PEER_INFO_BUTTON_Y
+#define WIFI_BUTTON_W 15
+#define WIFI_BUTTON_H 10
+
+// 增大 PubSubClient 的缓冲区大小以发送更大的批量数据
+#define MQTT_MAX_PACKET_SIZE 1024
+
+
 #endif // CONFIG_H
